@@ -1,0 +1,18 @@
+# Flask Ansible Playbook Runner - Python Dependencies
+# Snake and CogWheel Project
+
+# Core Framework
+Flask==3.0.0
+
+# WSGI Server for Production (optional but recommended)
+gunicorn==21.2.0
+
+# Jinja2 (included with Flask, but pinning for stability)
+Jinja2==3.1.2
+
+# Werkzeug (Flask dependency)
+Werkzeug==3.0.1
+
+# Note: Ansible should be installed separately via system package manager
+# or pip install ansible, as it requires system-level dependencies
+

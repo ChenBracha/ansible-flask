@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  snake-cogwheel:
+    build: .
+    container_name: snake-cogwheel
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount playbooks directory (optional - for custom playbooks)
+      - ./playbooks:/app/playbooks:ro
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    restart: unless-stopped
+    networks:
+      - ansible-network
+
+networks:
+  ansible-network:
+    driver: bridge
+

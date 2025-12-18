@@ -1,0 +1,181 @@
+---
+# System Information and Health Check Playbook
+# Gathers comprehensive system information and performs basic health checks
+
+- name: System Information and Health Check
+  hosts: all
+  gather_facts: yes
+  
+  tasks:
+    - name: Display hostname and IP information
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          SYSTEM IDENTITY
+          ====================================
+          Hostname: {{ ansible_hostname }}
+          FQDN: {{ ansible_fqdn | default('N/A') }}
+          Primary IP: {{ ansible_default_ipv4.address | default('N/A') }}
+          All IPv4 Addresses: {{ ansible_all_ipv4_addresses | default(['N/A']) | join(', ') }}
+    
+    - name: Display operating system information
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          OPERATING SYSTEM
+          ====================================
+          OS Family: {{ ansible_os_family }}
+          Distribution: {{ ansible_distribution }}
+          Version: {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          Architecture: {{ ansible_architecture }}
+    
+    - name: Display hardware information
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          HARDWARE INFORMATION
+          ====================================
+          Processor: {{ ansible_processor[2] | default(ansible_processor[0]) | default('Unknown') }}
+          Processor Count: {{ ansible_processor_count | default(ansible_processor_vcpus) | default('N/A') }}
+          CPU Cores: {{ ansible_processor_cores | default(ansible_processor_vcpus) | default('N/A') }}
+          vCPUs: {{ ansible_processor_vcpus | default('N/A') }}
+          Total Memory: {{ (ansible_memtotal_mb / 1024) | round(2) }} GB
+          Free Memory: {{ (ansible_memfree_mb / 1024) | round(2) }} GB
+    
+    - name: Display disk usage information
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          DISK INFORMATION
+          ====================================
+          Total Disk Space: {{ (ansible_mounts[0].size_total / 1024 / 1024 / 1024) | round(2) }} GB
+          Available Disk Space: {{ (ansible_mounts[0].size_available / 1024 / 1024 / 1024) | round(2) }} GB
+          Mount Point: {{ ansible_mounts[0].mount }}
+          Filesystem: {{ ansible_mounts[0].fstype }}
+      when: 
+        - ansible_mounts is defined
+        - ansible_mounts | length > 0
+    
+    - name: Display disk information unavailable message
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          DISK INFORMATION
+          ====================================
+          Disk information not available on this system
+      when: ansible_mounts is not defined or ansible_mounts | length == 0
+    
+    - name: Check system uptime (Unix/Linux/Mac)
+      ansible.builtin.command: uptime
+      register: uptime_result
+      changed_when: false
+      failed_when: false
+      when: ansible_system != "Win32NT"
+    
+    - name: Check system uptime (Windows)
+      ansible.builtin.win_shell: |
+        $os = Get-CimInstance Win32_OperatingSystem
+        $uptime = (Get-Date) - $os.LastBootUpTime
+        "System up: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes"
+      register: uptime_result_windows
+      changed_when: false
+      failed_when: false
+      when: ansible_system == "Win32NT"
+    
+    - name: Display uptime (Unix/Linux/Mac)
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          SYSTEM UPTIME
+          ====================================
+          {{ uptime_result.stdout }}
+      when: 
+        - ansible_system != "Win32NT"
+        - uptime_result is defined
+        - uptime_result.stdout is defined
+    
+    - name: Display uptime (Windows)
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          SYSTEM UPTIME
+          ====================================
+          {{ uptime_result_windows.stdout }}
+      when: 
+        - ansible_system == "Win32NT"
+        - uptime_result_windows is defined
+        - uptime_result_windows.stdout is defined
+    
+    - name: Check if system updates are available (macOS)
+      ansible.builtin.command: softwareupdate -l
+      register: updates_check_mac
+      changed_when: false
+      failed_when: false
+      when: ansible_distribution == "MacOSX"
+    
+    - name: Check if system updates are available (Linux)
+      ansible.builtin.shell: |
+        if command -v apt &> /dev/null; then
+          apt list --upgradable 2>/dev/null | grep -c upgradable || echo "0 updates"
+        elif command -v yum &> /dev/null; then
+          yum check-update -q | wc -l || echo "0 updates"
+        else
+          echo "Package manager not supported"
+        fi
+      register: updates_check_linux
+      changed_when: false
+      failed_when: false
+      when: ansible_system == "Linux"
+    
+    - name: Display update status (macOS)
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          SOFTWARE UPDATES (macOS)
+          ====================================
+          {{ updates_check_mac.stdout if updates_check_mac.stdout else 'No updates available or unable to check' }}
+      when: 
+        - ansible_distribution == "MacOSX"
+        - updates_check_mac is defined
+    
+    - name: Display update status (Linux)
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          SOFTWARE UPDATES (Linux)
+          ====================================
+          {{ updates_check_linux.stdout if updates_check_linux.stdout else 'Unable to check updates' }}
+      when: 
+        - ansible_system == "Linux"
+        - updates_check_linux is defined
+    
+    - name: Check disk usage warning
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: Disk usage is above 80%!"
+      when: 
+        - ansible_mounts is defined
+        - ansible_mounts | length > 0
+        - (ansible_mounts[0].size_available / ansible_mounts[0].size_total * 100) < 20
+    
+    - name: Check memory usage warning
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: Available memory is below 20%!"
+      when: 
+        - ansible_memfree_mb is defined
+        - ansible_memtotal_mb is defined
+        - (ansible_memfree_mb / ansible_memtotal_mb * 100) < 20
+    
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          ====================================
+          HEALTH CHECK SUMMARY
+          ====================================
+          ✅ System information gathered successfully
+          ✅ Host is responding normally
+          ✅ All checks completed
+          
+          Date: {{ ansible_date_time.date }}
+          Time: {{ ansible_date_time.time }}
+

@@ -1,0 +1,25 @@
+---
+# Default Ansible Playbook - Simple Ping Test
+# This playbook runs on all hosts and executes the ping module to verify connectivity
+
+- name: Default Ping Playbook
+  hosts: all
+  gather_facts: yes
+  
+  tasks:
+    - name: Ping all hosts
+      ansible.builtin.ping:
+      register: ping_result
+    
+    - name: Display ping result
+      ansible.builtin.debug:
+        msg: "Ping successful! Host is reachable."
+      when: ping_result is succeeded
+    
+    - name: Show system information
+      ansible.builtin.debug:
+        msg: |
+          System: {{ ansible_system }}
+          Distribution: {{ ansible_distribution | default('N/A') }}
+          Version: {{ ansible_distribution_version | default('N/A') }}
+          Architecture: {{ ansible_architecture }}
